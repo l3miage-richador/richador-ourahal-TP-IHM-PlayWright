@@ -140,7 +140,8 @@ test.describe('Ajout de tâches - Scénarios', () => {
 		expect(step2).toContain(text);
 	});
 
-    
+    // Lorsque l'utilisateur ajoute plusieurs tâches rapidement
+    // Alors toutes les tâches sont ajoutées correctement dans les deux listes
 	test('Ajouter plusieurs tâches rapidement => toutes présentes', async ({ page }) => {
 		const tasks = Array.from({ length: 5 }, (_, i) => `quick-${i}-${Date.now()}`);
 
@@ -191,7 +192,7 @@ test.describe('Ajout de tâches - Scénarios', () => {
 	});
 
 	// Lorsque l'utilisateur ajoute une tâche
-	// Alors la tâche est ajoutée en haut de la liste
+	// Alors la tâche est ajoutée en haut des deux listes
 	test('Ajouter une tâche => la tâche apparaît en haut de la liste principale', async ({ page }) => {
 		const text2 = `top-${Date.now()}`;
 		const text1 = `bottom-${Date.now()}`;
