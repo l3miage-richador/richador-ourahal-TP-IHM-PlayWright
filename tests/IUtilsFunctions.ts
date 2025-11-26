@@ -14,13 +14,12 @@ export async function addTodoUsingMainInput(page: Page, text: string): Promise<v
 /**
  * Ajoute un todo grâce au champ texte de l’Étape 2
  */
-export async function addTodoUsingStep2Input(page: Page, text: string): Promise<void> {
-  const input = page.locator(
-    "xpath=//h2[text()='Étape 2']/following-sibling::ul[1]//input[@type='text']"
-  );
+export async function addTodoUsingStep2Input(page: Page, text: string) {
+  const input = page.locator("//h2[text()='Étape 2']/following::form[1]//input");
   await input.fill(text);
   await input.press("Enter");
 }
+
 
 /* ---------------------- RÉCUPÉRATION DE TODOS ----------------------- */
 
@@ -56,7 +55,7 @@ export async function getTodosFromJsonList(page: Page): Promise<{ label: string;
 /* ---------------------- TOGGLE (COCHER/DÉCOCHER) ----------------------- */
 
 /**
- * Coche/décocher une tâche dans la liste principale
+ * Coche/décoche une tâche dans la liste principale
  */
 export async function toggleTodoFromMainList(page: Page, index: number): Promise<void> {
   const checkbox = page.locator(
@@ -81,21 +80,27 @@ export async function toggleTodoFromStep2List(page: Page, index: number): Promis
  * Supprime un todo de la liste principale
  */
 export async function deleteTodoFromMainList(page: Page, index: number): Promise<void> {
-  const button = page.locator(
-    `xpath=(//section[contains(@class,'todoapp')]//ul[@class='todo-list']//li//button[@class='destroy'])[${index + 1}]`
+  const todoItem = page.locator(
+    `xpath=(//section[contains(@class,'todoapp')]//ul[@class='todo-list']//li)[${index + 1}]`
   );
+
+  await todoItem.hover();
+
+  const button = todoItem.locator("xpath=.//button[@class='destroy']");
   await button.click();
 }
+
 
 /**
  * Supprime un todo de l’Étape 2
  */
-export async function deleteTodoFromStep2List(page: Page, index: number): Promise<void> {
-  const button = page.locator(
-    `xpath=(//h2[text()='Étape 2']/following-sibling::ul[1]//li//button)[${index + 1}]`
-  );
+export async function deleteTodoFromStep2List(page: Page, index: number) {
+  const todoItem = page.locator(`(//h2[text()='Étape 2']/following::ul[1]/li)[${index + 1}]`);
+  await todoItem.hover();
+  const button = todoItem.locator("button");
   await button.click();
 }
+
 
 /* ---------------------- ÉDITION ----------------------- */
 
