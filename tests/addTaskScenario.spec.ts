@@ -1,4 +1,4 @@
-// Scénario d'un ajout d'une tâche à la todo list
+// Scénario d'un ajout d'une tâche ou plusieurs tâches dans la todo list
 import { test, expect, Page } from '@playwright/test';
 import {
 	addTodoUsingMainInput,

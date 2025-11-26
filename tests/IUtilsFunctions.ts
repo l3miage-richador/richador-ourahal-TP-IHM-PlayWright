@@ -14,12 +14,11 @@ export async function addTodoUsingMainInput(page: Page, text: string): Promise<v
 /**
  * Ajoute un todo grâce au champ texte de l’Étape 2
  */
-export async function addTodoUsingStep2Input(page: Page, text: string) {
+export async function addTodoUsingStep2Input(page: Page, text: string): Promise<void> {
   const input = page.locator("//h2[text()='Étape 2']/following::form[1]//input");
   await input.fill(text);
   await input.press("Enter");
 }
-
 
 /* ---------------------- RÉCUPÉRATION DE TODOS ----------------------- */
 
@@ -55,7 +54,7 @@ export async function getTodosFromJsonList(page: Page): Promise<{ label: string;
 /* ---------------------- TOGGLE (COCHER/DÉCOCHER) ----------------------- */
 
 /**
- * Coche/décoche une tâche dans la liste principale
+ * Coche/décocher une tâche dans la liste principale
  */
 export async function toggleTodoFromMainList(page: Page, index: number): Promise<void> {
   const checkbox = page.locator(
@@ -80,27 +79,41 @@ export async function toggleTodoFromStep2List(page: Page, index: number): Promis
  * Supprime un todo de la liste principale
  */
 export async function deleteTodoFromMainList(page: Page, index: number): Promise<void> {
-  const todoItem = page.locator(
+  const item = page.locator(
     `xpath=(//section[contains(@class,'todoapp')]//ul[@class='todo-list']//li)[${index + 1}]`
   );
+  const button = page.locator(
+    `xpath=(//section[contains(@class,'todoapp')]//ul[@class='todo-list']//li//button[@class='destroy'])[${index + 1}]`
+  );
 
-  await todoItem.hover();
-
-  const button = todoItem.locator("xpath=.//button[@class='destroy']");
-  await button.click();
+  // Hover the list item so the destroy button becomes visible, then click.
+  await item.hover();
+  try {
+    await button.waitFor({ state: 'visible', timeout: 2000 });
+    await button.click();
+  } catch (e) {
+    // Fallback for headless/CI: force the click if visibility did not appear.
+    await button.click({ force: true });
+  }
 }
-
 
 /**
  * Supprime un todo de l’Étape 2
  */
-export async function deleteTodoFromStep2List(page: Page, index: number) {
-  const todoItem = page.locator(`(//h2[text()='Étape 2']/following::ul[1]/li)[${index + 1}]`);
-  await todoItem.hover();
-  const button = todoItem.locator("button");
-  await button.click();
-}
+export async function deleteTodoFromStep2List(page: Page, index: number): Promise<void> {
+  const item = page.locator(`xpath=(//h2[text()='Étape 2']/following-sibling::ul[1]//li)[${index + 1}]`);
+  const button = page.locator(
+    `xpath=(//h2[text()='Étape 2']/following-sibling::ul[1]//li//button)[${index + 1}]`
+  );
 
+  await item.hover();
+  try {
+    await button.waitFor({ state: 'visible', timeout: 2000 });
+    await button.click();
+  } catch (e) {
+    await button.click({ force: true });
+  }
+}
 
 /* ---------------------- ÉDITION ----------------------- */
 
@@ -119,11 +132,46 @@ export async function editTodoFromStep2(page: Page, index: number, newText: stri
  * Édite un todo dans la liste principale
  */
 export async function editTodoInMainList(page: Page, index: number, newText: string): Promise<void> {
+  // use contains(@class,'edit') because the input may have multiple classes
   const input = page.locator(
-    `xpath=(//section[contains(@class,'todoapp')]//ul[@class='todo-list']//li//input[@class='edit'])[${index + 1}]`
+    `xpath=(//section[contains(@class,'todoapp')]//ul[@class='todo-list']//li//input[contains(@class,'edit')])[${index + 1}]`
   );
-  await input.fill(newText);
-  await input.press("Enter");
+
+  // try to open inline editor with a double-click on the label (may be required)
+  const label = page.locator(
+    `xpath=(//section[contains(@class,'todoapp')]//ul[@class='todo-list']//li//label[@class='texte'])[${index + 1}]`
+  );
+  await label.dblclick().catch(() => {});
+
+  try {
+    // wait shortly for the inline edit input to appear, then fill
+    await input.first().waitFor({ state: 'visible', timeout: 5000 });
+    await input.fill(newText);
+    await input.press('Enter');
+  } catch (e) {
+    throw new Error(`editTodoInMainList: unable to fill edit input for index=${index} - ${e}`);
+  }
+}
+
+/**
+ * Édite un todo dans la liste de l'Étape 2
+ */
+export async function editTodoInStep2(page: Page, index: number, newText: string): Promise<void> {
+  const input = page.locator(
+    `xpath=(//h2[text()='Étape 2']/following-sibling::ul[1]//li//input[@name='newLabel'])[${index + 1}]`
+  );
+
+  // click the list item (single click) to activate inline edit if required
+  const item = page.locator(`xpath=(//h2[text()='Étape 2']/following-sibling::ul[1]//li)[${index + 1}]`);
+  await item.click().catch(() => {});
+
+  try {
+    await input.first().waitFor({ state: 'visible', timeout: 5000 });
+    await input.fill(newText);
+    await input.press('Enter');
+  } catch (e) {
+    throw new Error(`editTodoInStep2: unable to fill step2 input for index=${index} - ${e}`);
+  }
 }
 
 /* ---------------------- FILTRES ----------------------- */
@@ -166,12 +214,20 @@ export async function clearCompleted(page: Page): Promise<void> {
  * Retourne le nombre affiché de tâches restantes
  */
 export async function countRemaining(page: Page): Promise<number> {
-  const locator = page.locator("xpath=//span[contains(@class,'todo-count')]/strong");
+  // Prefer a strong inside the todo-count span, but be tolerant:
+  // - if the element is missing, return 0
+  // - trim whitespace and fallback to parsing any number found inside the span
+  const strongLocator = page.locator("xpath=//span[contains(@class,'todo-count')]//strong");
   try {
-    const count = await locator.count();
-    if (count === 0) return 0;
-    // use a short timeout to avoid long global test timeouts
-    const text = await locator.first().innerText({ timeout: 5000 });
+    if ((await strongLocator.count()) === 0) {
+      const span = page.locator("xpath=//span[contains(@class,'todo-count')]");
+      if ((await span.count()) === 0) return 0;
+      const spanText = (await span.first().innerText()).trim();
+      const m = spanText.match(/(\d+)/);
+      return m ? parseInt(m[1], 10) : 0;
+    }
+
+    const text = (await strongLocator.first().innerText()).trim();
     const n = parseInt(text, 10);
     return Number.isNaN(n) ? 0 : n;
   } catch (e) {
