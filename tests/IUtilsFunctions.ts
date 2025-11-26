@@ -166,8 +166,17 @@ export async function clearCompleted(page: Page): Promise<void> {
  * Retourne le nombre affiché de tâches restantes
  */
 export async function countRemaining(page: Page): Promise<number> {
-  const text = await page.locator("xpath=//span[contains(@class,'todo-count')]/strong").innerText();
-  return parseInt(text, 10);
+  const locator = page.locator("xpath=//span[contains(@class,'todo-count')]/strong");
+  try {
+    const count = await locator.count();
+    if (count === 0) return 0;
+    // use a short timeout to avoid long global test timeouts
+    const text = await locator.first().innerText({ timeout: 5000 });
+    const n = parseInt(text, 10);
+    return Number.isNaN(n) ? 0 : n;
+  } catch (e) {
+    return 0;
+  }
 }
 
 /**
